@@ -10,7 +10,7 @@ export async function getStatus(): Promise<string> {
     const response = await fetch(`${API_BASE_URL}/`);
     const data = await response.json();
     return data.status || 'Verbunden';
-  } catch (error) {
+  } catch {
     return 'Backend nicht erreichbar';
   }
 }
@@ -75,14 +75,14 @@ export async function handleSend(
       ));
     }
     return { response: accumulatedResponse };
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
       console.log('Anfrage abgebrochen');
     } else {
       console.error('Fehler:', error);
       setError('Fehler beim Senden der Nachricht');
     }
-    return { error: error.message };
+    return { error: error instanceof Error ? error.message : 'Unbekannter Fehler' };
   } finally {
     activeAbortController = null;
   }
