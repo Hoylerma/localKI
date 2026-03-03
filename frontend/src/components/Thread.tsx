@@ -5,7 +5,7 @@ import {
   MessagePartPrimitive,
 } from '@assistant-ui/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
-import { SendHorizonal, Square } from 'lucide-react';
+import { SendHorizontal, Square } from 'lucide-react';
 
 function UserMessage() {
   return (
@@ -74,7 +74,7 @@ export default function Thread() {
             rows={1}
           />
           <ComposerPrimitive.Send className="bg-[#ffe000] text-black px-4 py-2 rounded font-medium text-sm hover:brightness-95 disabled:opacity-40 flex items-center gap-1 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap">
-            <SendHorizonal size={16} />
+            <SendHorizontal size={16} />
             SENDEN
           </ComposerPrimitive.Send>
           <ComposerPrimitive.Cancel className="hidden bg-[#ededed] text-black px-4 py-2 rounded font-medium text-sm hover:brightness-95 items-center gap-1 cursor-pointer [&:not([disabled])]:flex">
