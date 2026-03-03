@@ -1,7 +1,4 @@
-import { Box, List, ListItem, ListItemButton, ListItemText, Button, IconButton, Divider, Typography } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
-import ChatIcon from '@mui/icons-material/Chat';
+import { Plus, Trash2, MessageSquare } from 'lucide-react';
 import type { Conversation } from '../types';
 import FileUpload from './FileUpload';
 
@@ -12,66 +9,71 @@ interface SidebarProps {
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   status: string;
-  open: boolean;
-  onClose: () => void;
 }
 
-function Sidebar({ conversations, currentConversationId, startNewConversation, selectConversation, deleteConversation, status }: SidebarProps) {
+function Sidebar({
+  conversations,
+  currentConversationId,
+  startNewConversation,
+  selectConversation,
+  deleteConversation,
+  status,
+}: SidebarProps) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 2, backgroundColor: '#000000', color: '#f6f6f6' }}>
-      <Button
-        variant="contained"
-        startIcon={<AddIcon />}
-        onClick={startNewConversation}
-        sx={{ mb: 2, backgroundColor: '#ffe000', color: '#000000', '&:hover': { backgroundColor: '#ffe000' } }}
-        fullWidth
-      >
-        Neuer Chat
-      </Button>
+    <aside className="w-70 flex-shrink-0 flex flex-col h-full bg-[#000000] text-[#f6f6f6] overflow-hidden">
+      <div className="p-3">
+        <button
+          onClick={startNewConversation}
+          className="w-full flex items-center justify-center gap-2 bg-[#ffe000] text-black px-3 py-2 rounded font-medium text-sm hover:brightness-95 transition-all"
+        >
+          <Plus size={18} />
+          Neuer Chat
+        </button>
+      </div>
 
-      <Divider sx={{ mb: 2, backgroundColor: '#4a4a4a' }} />
+      <div className="border-t border-[#4a4a4a] mx-3" />
 
       {/* RAG Dokumente Upload */}
       <FileUpload />
 
-      <Divider sx={{ my: 1, backgroundColor: '#4a4a4a' }} />
+      <div className="border-t border-[#4a4a4a] mx-3 my-1" />
 
-      <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1, opacity: 0.7 }}>Konversationen</Typography>
-        <List>
-          {conversations.map((conv) => (
-            <ListItem
-              key={conv.id}
-              disablePadding
-              secondaryAction={
-                <IconButton edge="end" onClick={() => deleteConversation(conv.id)} sx={{ color: 'rgba(255,255,255,0.5)' }}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-              }
-            >
-              <ListItemButton
-                selected={currentConversationId === conv.id}
+      {/* Conversation list */}
+      <div className="flex-1 overflow-y-auto px-2 py-1">
+        <p className="text-xs text-[#a8a8a8] px-2 mb-2">Konversationen</p>
+        <ul className="space-y-1">
+          {conversations.map(conv => (
+            <li key={conv.id} className="group relative">
+              <button
                 onClick={() => selectConversation(conv.id)}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&.Mui-selected': { backgroundColor: 'rgba(74,144,226,0.3)' }
-                }}
+                className={[
+                  'w-full flex items-center gap-2 px-2 py-2 rounded text-sm text-left pr-8',
+                  currentConversationId === conv.id
+                    ? 'bg-[#ffe000]/20 text-white'
+                    : 'hover:bg-white/10 text-[#f6f6f6]',
+                ].join(' ')}
               >
-                <ChatIcon fontSize="small" sx={{ mr: 1 }} />
-                <ListItemText primary={conv.title} primaryTypographyProps={{ fontSize: '0.9rem', noWrap: true }} />
-              </ListItemButton>
-            </ListItem>
+                <MessageSquare size={14} className="flex-shrink-0" />
+                <span className="truncate">{conv.title}</span>
+              </button>
+              <button
+                onClick={() => deleteConversation(conv.id)}
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-white"
+                aria-label="Konversation löschen"
+              >
+                <Trash2 size={14} />
+              </button>
+            </li>
           ))}
-        </List>
-      </Box>
+        </ul>
+      </div>
 
-      <Divider sx={{ my: 2, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+      <div className="border-t border-white/10 mx-3" />
 
-      <Typography variant="caption" sx={{ textAlign: 'center', color: '#a8a8a8' }}>
-        Status: {status}
-      </Typography>
-    </Box>
+      <div className="px-3 py-2">
+        <p className="text-xs text-[#a8a8a8] text-center">Status: {status}</p>
+      </div>
+    </aside>
   );
 }
 
