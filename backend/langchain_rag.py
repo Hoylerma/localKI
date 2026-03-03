@@ -31,7 +31,7 @@ OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL") or os.getenv(
     "OLLAMA_API", "http://localhost:11434"
 )
 EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-CHAT_MODEL: str = os.getenv("CHAT_MODEL", "llama3.2")
+CHAT_MODEL: str = os.getenv("CHAT_MODEL", "mistral")
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL", "postgresql://raguser:ragpass@postgres:5432/ragdb"
 )
@@ -169,6 +169,18 @@ async def ingest_document(filename: str, file_bytes: bytes) -> dict:
         for i, chunk in enumerate(chunks)
     ]
 
+    await delete_document(filename)
+    vs = get_vector_store()
+    # sync add_documents statt async aadd_documents
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, vs.add_documents, documents)
+
+    return {
+        "filename": filename,
+        "chunks": len(chunks),
+        "characters": len(text),
+    }
+
     # Remove previous version of this document, then add fresh chunks.
     await delete_document(filename)
     vs = get_vector_store()
@@ -192,7 +204,11 @@ async def rag_search_async(query: str, top_k: int = RAG_TOP_K) -> str:
     Returns an empty string if nothing relevant is found.
     """
     vs = get_vector_store()
-    results = await vs.asimilarity_search_with_relevance_scores(query, k=top_k)
+    # sync similarity_search statt async asimilarity_search
+    loop = asyncio.get_event_loop()
+    results = await loop.run_in_executor(
+        None, lambda: vs.similarity_search_with_relevance_scores(query, k=top_k)
+    )
 
     context_parts: List[str] = []
     total_len = 0

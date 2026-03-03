@@ -72,7 +72,7 @@ export default function Thread() {
               <Bot size={32} className="text-[#ffe000]" />
             </div>
             <h1 className="text-2xl font-semibold text-gray-800">Bw-I Chatbot</h1>
-            <p className="text-gray-500 text-sm">Intelligente Hilfe für Bundeswehr-Informationen</p>
+            <p className="text-gray-500 text-sm">Intelligente Hilfe</p>
           </div>
         </ThreadPrimitive.Empty>
         <ThreadPrimitive.Messages
