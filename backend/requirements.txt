@@ -12,3 +12,4 @@ langchain-postgres>=0.0.12
 langchain-text-splitters>=0.3.9
 langsmith>=0.1.0
 psycopg[binary]>=3.1.0
+psycopg[pool]>=3.1.0

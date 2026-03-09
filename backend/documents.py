@@ -17,6 +17,7 @@ async def ingest_document(filename: str, file_bytes: bytes) -> dict:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
+        separators=["\n\n", "\n", " ", ""]
     )
     chunks = splitter.split_text(text)
     if not chunks:

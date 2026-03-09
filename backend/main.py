@@ -1,9 +1,19 @@
+
+
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
+from config import CHAT_MODEL, OLLAMA_BASE_URL, SYSTEM_PROMPT
+import asyncio
+
+import time
+import logging
+
+import os
+from file_watcher import watch_loop, sync_documents
 
 from config import CHAT_MODEL, OLLAMA_BASE_URL
 from database import close_db, init_db
@@ -12,6 +22,12 @@ from retrieval import rag_search_async
 
 app = FastAPI()
 
+WATCH_DIR = os.getenv("WATCH_DIR", "")
+WATCH_INTERVAL = int(os.getenv("WATCH_INTERVAL", "30"))
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("bwiki")
+
 
 origins = [
     "http://localhost",
@@ -19,6 +35,8 @@ origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:80",
+    "http://localhost:8080",
+    "http://localhost:8000"
 ]
 
 app.add_middleware(
@@ -99,18 +117,28 @@ async def remove_document(filename: str):
 
 
 async def stream_response(prompt: str, request: Request):
-    # Deterministic RAG: retrieve context first, then stream LLM response.
+    # 1. RAG-Kontext holen
     try:
         rag_context = await rag_search_async(prompt)
     except Exception as e:
-        print(f"RAG-Kontext konnte nicht abgerufen werden: {e}")
+        logger.warning(f"RAG-Kontext fehlgeschlagen: {e}")
         rag_context = ""
 
-    system_content = "Du bist ein hilfreicher Assistent. Antworte immer auf Deutsch."
+    # ── Kontext loggen ──────────────────────────────────────
+    logger.info("=" * 60)
+    logger.info(f"📝 FRAGE: {prompt}")
+    if rag_context:
+        logger.info(f"📚 RAG-KONTEXT ({len(rag_context)} Zeichen):")
+        logger.info(rag_context[:500] + ("..." if len(rag_context) > 500 else ""))
+    else:
+        logger.info("📚 RAG-KONTEXT: Keiner gefunden")
+    logger.info("=" * 60)
+
+    system_content = SYSTEM_PROMPT
 
     if rag_context:
         user_content = (
-            "Beantworte die folgende Frage basierend auf dem bereitgestellten Kontext. "
+            "Du bist ein interner Wissens-AssistentBeantworte die folgende Frage basierend auf dem bereitgestellten Kontext. "
             "Wenn der Kontext nicht ausreicht, nutze dein allgemeines Wissen, aber weise darauf hin. "
             "Nenne am Ende die verwendeten Quellen.\n\n"
             f"--- KONTEXT ---\n{rag_context}\n--- ENDE KONTEXT ---\n\n"
@@ -125,15 +153,42 @@ async def stream_response(prompt: str, request: Request):
         HumanMessage(content=user_content),
     ]
 
+    # ── Token-Zählung & Geschwindigkeit ─────────────────────
+    token_count = 0
+    start_time = time.perf_counter()
+    first_token_time = None
+
     try:
         async for chunk in llm.astream(messages):
             if await request.is_disconnected():
-                print("Client hat die Verbindung getrennt")
+                logger.info("Client hat die Verbindung getrennt")
                 return
+
+            token_count += 1
+            if first_token_time is None:
+                first_token_time = time.perf_counter()
+
             yield chunk.content
+
     except Exception as e:
-        print(f"Fehler bei der Anfrage an Ollama: {e}")
+        logger.error(f"Fehler bei Ollama: {e}")
         yield "\n\n[Fehler: Verbindung zu Ollama fehlgeschlagen]"
+
+    finally:
+        # ── Statistiken ausgeben ────────────────────────────
+        total_time = time.perf_counter() - start_time
+        ttft = (first_token_time - start_time) if first_token_time else 0
+        tps = token_count / total_time if total_time > 0 else 0
+
+        logger.info("-" * 60)
+        logger.info(f"⚡ PERFORMANCE:")
+        logger.info(f"   Modell:              {CHAT_MODEL}")
+        logger.info(f"   Tokens generiert:    {token_count}")
+        logger.info(f"   Gesamtzeit:          {total_time:.2f}s")
+        logger.info(f"   Time to first token: {ttft:.2f}s")
+        logger.info(f"   Tokens/Sekunde:      {tps:.1f} t/s")
+        logger.info(f"   Kontext-Länge:       {len(user_content)} Zeichen")
+        logger.info("-" * 60)
 
 
 @app.post("/chat")
@@ -148,5 +203,25 @@ async def chat(data: ChatMessage, request: Request):
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
+
+    # File Watcher starten (wenn Ordner konfiguriert)
+    if WATCH_DIR and os.path.isdir(WATCH_DIR):
+        asyncio.create_task(watch_loop(WATCH_DIR, WATCH_INTERVAL))
+
+
+# Manueller Sync-Endpunkt
+@app.post("/sync")
+async def trigger_sync():
+    """Erzwingt eine sofortige Synchronisierung des Dokumentenordners."""
+    if not WATCH_DIR or not os.path.isdir(WATCH_DIR):
+        raise HTTPException(status_code=400, detail="Kein Watch-Verzeichnis konfiguriert")
+
+    stats = await sync_documents(WATCH_DIR)
+    return {"status": "synced", **stats}
 
 
