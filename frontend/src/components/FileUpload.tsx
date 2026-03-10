@@ -1,27 +1,6 @@
 import { useState, useRef } from 'react';
-import {
-  Box,
-  Button,
-  Typography,
-  LinearProgress,
-  IconButton,
-  Paper,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  Collapse,
-  Tooltip,
-} from '@mui/material';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DescriptionIcon from '@mui/icons-material/Description';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+import { FileText, Upload, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { API_BASE_URL } from '../api';
 
 interface UploadedDoc {
   filename: string;
@@ -78,8 +57,8 @@ export default function FileUpload() {
 
         const result = await res.json();
         setUploadProgress(`${file.name}: ${result.chunks} Chunks erstellt`);
-      } catch (err: any) {
-        setError(err.message || 'Fehler beim Upload');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Fehler beim Upload');
       }
     }
 
@@ -87,7 +66,6 @@ export default function FileUpload() {
     setUploadProgress('');
     fetchDocuments();
 
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -97,7 +75,7 @@ export default function FileUpload() {
         method: 'DELETE',
       });
       if (res.ok) {
-        setDocuments((prev) => prev.filter((d) => d.filename !== filename));
+        setDocuments(prev => prev.filter(d => d.filename !== filename));
       }
     } catch {
       console.error('Fehler beim Löschen');
@@ -105,146 +83,105 @@ export default function FileUpload() {
   };
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        mx: 2,
-        mt: 1,
-        mb: 1,
-        backgroundColor: '#111111',
-        borderRadius: 2,
-        overflow: 'hidden',
-      }}
-    >
-      {/* Header mit Toggle */}
-      <Box
+    <div className="mx-2 mt-1 mb-1 bg-[#111111] rounded-lg overflow-hidden">
+      {/* Header with toggle */}
+      <button
         onClick={handleToggle}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 2,
-          py: 1,
-          cursor: 'pointer',
-          '&:hover': { backgroundColor: 'rgba(255,224,0,0.05)' },
-        }}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-[#ffe000]/5 transition-colors"
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <DescriptionIcon sx={{ fontSize: 18, color: '#ffe000' }} />
-          <Typography variant="body2" sx={{ color: '#f6f6f6', fontWeight: 500 }}>
-            Dokumente (RAG)
-          </Typography>
+        <div className="flex items-center gap-2">
+          <FileText size={16} className="text-[#ffe000]" />
+          <span className="text-[#f6f6f6] text-sm font-medium">Dokumente (RAG)</span>
           {documents.length > 0 && (
-            <Chip
-              label={documents.length}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: '0.7rem',
-                backgroundColor: '#ffe000',
-                color: '#000',
-              }}
-            />
+            <span className="bg-[#ffe000] text-black text-xs rounded-full px-1.5 py-0.5 leading-none font-medium">
+              {documents.length}
+            </span>
           )}
-        </Box>
+        </div>
         {expanded ? (
-          <ExpandLessIcon sx={{ color: '#888', fontSize: 20 }} />
+          <ChevronUp size={16} className="text-[#888]" />
         ) : (
-          <ExpandMoreIcon sx={{ color: '#888', fontSize: 20 }} />
+          <ChevronDown size={16} className="text-[#888]" />
         )}
-      </Box>
+      </button>
 
-      <Collapse in={expanded}>
-        <Box sx={{ px: 2, pb: 2 }}>
-          {/* Upload Button */}
+      {expanded && (
+        <div className="px-3 pb-3">
+          {/* Upload button */}
           <input
             ref={fileInputRef}
             type="file"
             multiple
             accept=".pdf,.docx,.txt,.md,.csv,.json,.xml,.html"
             onChange={handleUpload}
-            style={{ display: 'none' }}
+            className="hidden"
             id="file-upload-input"
           />
           <label htmlFor="file-upload-input">
-            <Button
-              component="span"
-              variant="outlined"
-              startIcon={<CloudUploadIcon />}
-              disabled={uploading}
-              fullWidth
-              sx={{
-                mt: 1,
-                borderColor: '#ffe000',
-                color: '#ffe000',
-                '&:hover': { borderColor: '#ffe000', backgroundColor: 'rgba(255,224,0,0.1)' },
-              }}
+            <span
+              className={[
+                'mt-2 w-full flex items-center justify-center gap-2 border border-[#ffe000] text-[#ffe000] px-3 py-2 rounded text-sm cursor-pointer',
+                uploading
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:bg-[#ffe000]/10 transition-colors',
+              ].join(' ')}
             >
+              <Upload size={16} />
               {uploading ? 'Wird verarbeitet...' : 'Dokument hochladen'}
-            </Button>
+            </span>
           </label>
 
-          {/* Upload Fortschritt */}
+          {/* Progress */}
           {uploading && (
-            <Box sx={{ mt: 1 }}>
-              <LinearProgress sx={{ '& .MuiLinearProgress-bar': { backgroundColor: '#ffe000' } }} />
-              <Typography variant="caption" sx={{ color: '#aaa', mt: 0.5, display: 'block' }}>
-                {uploadProgress}
-              </Typography>
-            </Box>
+            <div className="mt-2">
+              <div className="h-1 bg-[#333] rounded overflow-hidden">
+                <div className="h-full bg-[#ffe000] animate-pulse w-full" />
+              </div>
+              {uploadProgress && (
+                <p className="text-xs text-[#aaa] mt-1">{uploadProgress}</p>
+              )}
+            </div>
           )}
 
-          {/* Fehler */}
+          {/* Error */}
           {error && (
-            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
-              {error}
-            </Typography>
+            <p className="text-xs text-red-400 mt-2">{error}</p>
           )}
-
-          {/* Dokumentenliste */}
+        
+          {/* Document list */}
+          
           {documents.length > 0 && (
-            <List dense sx={{ mt: 1 }}>
-              {documents.map((doc) => (
-                <ListItem
+            <ul className="mt-2 space-y-1">
+              {documents.map(doc => (
+                <li
                   key={doc.filename}
-                  sx={{
-                    backgroundColor: 'rgba(255,255,255,0.03)',
-                    borderRadius: 1,
-                    mb: 0.5,
-                    pr: 6,
-                  }}
+                  className="flex items-center gap-2 bg-white/[0.03] rounded px-2 py-1.5"
                 >
-                  <UploadFileIcon sx={{ fontSize: 16, mr: 1, color: '#ffe000' }} />
-                  <ListItemText
-                    primary={doc.filename}
-                    secondary={`${doc.chunks} Chunks`}
-                    primaryTypographyProps={{ fontSize: '0.8rem', color: '#f6f6f6', noWrap: true }}
-                    secondaryTypographyProps={{ fontSize: '0.7rem', color: '#888' }}
-                  />
-                  <ListItemSecondaryAction>
-                    <Tooltip title="Löschen">
-                      <IconButton
-                        edge="end"
-                        size="small"
-                        onClick={() => handleDelete(doc.filename)}
-                        sx={{ color: 'rgba(255,255,255,0.4)' }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </ListItemSecondaryAction>
-                </ListItem>
+                  <Upload size={14} className="text-[#ffe000] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-[#f6f6f6] truncate">{doc.filename}</p>
+                    <p className="text-xs text-[#888]">{doc.chunks} Chunks</p>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(doc.filename)}
+                    className="p-1 text-white/40 hover:text-white/80 transition-colors flex-shrink-0"
+                    title="Löschen"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </li>
               ))}
-            </List>
+            </ul>
           )}
+          
 
           {documents.length === 0 && !uploading && (
-            <Typography variant="caption" sx={{ color: '#666', mt: 1, display: 'block', textAlign: 'center' }}>
+            <p className="text-xs text-[#666] mt-2 text-center">
               Keine Dokumente hochgeladen
-            </Typography>
+            </p>
           )}
-        </Box>
-      </Collapse>
-    </Paper>
+        </div>
+      )}
+    </div>
   );
 }

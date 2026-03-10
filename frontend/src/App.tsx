@@ -1,102 +1,186 @@
-import { useState, useEffect, useRef } from 'react';
-import Box from '@mui/material/Box';
+import { useState, useRef, useEffect } from 'react';
+import {
+  AssistantRuntimeProvider,
+  useExternalStoreRuntime,
+  type AppendMessage,
+} from '@assistant-ui/react';
 import type { Conversation, Message } from './types';
 import Sidebar from './components/Sidebar';
-import ChatArea from './components/ChatArea';
 import Header from './components/Header';
-import { getStatus, handleSend } from './api';
+import Thread from './components/Thread';
+import { getStatus, API_BASE_URL } from './api';
 
-function App() {
+function ChatApp() {
   const [status, setStatus] = useState<string>('Verbinde...');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [input, setInput] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Use a ref to always have access to the latest conversationId in async handlers
+  const currentConversationIdRef = useRef<string | null>(null);
+  currentConversationIdRef.current = currentConversationId;
 
   useEffect(() => {
     getStatus().then(setStatus);
     startNewConversation();
   }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentConversationId, conversations]);
-
-  const currentMessages = currentConversationId ? conversations.find(c => c.id === currentConversationId)?.messages || [] : [];
+  const currentMessages = currentConversationId
+    ? (conversations.find(c => c.id === currentConversationId)?.messages ?? [])
+    : [];
 
   const startNewConversation = () => {
-    const newConversation: Conversation = { id: Date.now().toString(), title: 'Neue Konversation', messages: [], createdAt: new Date() };
+    const newId = Date.now().toString();
+    const newConversation: Conversation = {
+      id: newId,
+      title: 'Neue Konversation',
+      messages: [],
+      createdAt: new Date(),
+    };
     setConversations(prev => [newConversation, ...prev]);
-    setCurrentConversationId(newConversation.id);
+    setCurrentConversationId(newId);
   };
 
   const deleteConversation = (id: string) => {
     setConversations(prev => prev.filter(c => c.id !== id));
     if (currentConversationId === id) {
       const remaining = conversations.filter(c => c.id !== id);
-      setCurrentConversationId(remaining[0]?.id || null);
+      setCurrentConversationId(remaining[0]?.id ?? null);
     }
   };
 
-  const selectConversation = (id: string) => setCurrentConversationId(id);
+  const handleNew = async (message: AppendMessage) => {
+    const conversationId = currentConversationIdRef.current;
+    if (!conversationId) return;
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !currentConversationId) return;
+    const text = message.content
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map(p => p.text)
+      .join('\n');
 
-    const userMessage: Message = { id: Date.now().toString(), text: input, sender: 'user', timestamp: new Date() };
-    setConversations(prev => prev.map(c => c.id === currentConversationId ? { ...c, messages: [...c.messages, userMessage], title: c.messages.length === 0 ? input.substring(0, 30) + '...' : c.title } : c));
+    if (!text.trim()) return;
 
-    setInput('');
-    setLoading(true);
-    setError('');
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      text,
+      sender: 'user',
+      timestamp: new Date(),
+    };
 
-    const result = await handleSend(input, currentConversationId, setConversations, setError);
-    
-    if (result.error) {
-      setError(result.error);
+    setConversations(prev =>
+      prev.map(c =>
+        c.id === conversationId
+          ? {
+              ...c,
+              messages: [...c.messages, userMsg],
+              title: c.messages.length === 0 ? text.substring(0, 30) + '...' : c.title,
+            }
+          : c
+      )
+    );
+
+    setIsRunning(true);
+    try {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      abortControllerRef.current = new AbortController();
+
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Response body not readable');
+
+      const decoder = new TextDecoder();
+      const assistantMsgId = (Date.now() + 1).toString();
+
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: [
+                  ...c.messages,
+                  { id: assistantMsgId, text: '', sender: 'assistant' as const, timestamp: new Date() },
+                ],
+              }
+            : c
+        )
+      );
+
+      let accumulated = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+        const snapshot = accumulated;
+        setConversations(prev =>
+          prev.map(c =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  messages: c.messages.map(m =>
+                    m.id === assistantMsgId ? { ...m, text: snapshot } : m
+                  ),
+                }
+              : c
+          )
+        );
+      }
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('Chat error:', error);
+      }
+    } finally {
+      abortControllerRef.current = null;
+      setIsRunning(false);
     }
-
-    setLoading(false);
   };
+
+  const handleCancel = async () => {
+    abortControllerRef.current?.abort();
+  };
+
+  const runtime = useExternalStoreRuntime<Message>({
+    messages: currentMessages,
+    isRunning,
+    convertMessage: (msg: Message) => ({
+      role: msg.sender === 'user' ? ('user' as const) : ('assistant' as const),
+      content: [{ type: 'text' as const, text: msg.text }],
+      id: msg.id,
+      createdAt: msg.timestamp,
+    }),
+    onNew: handleNew,
+    onCancel: handleCancel,
+  });
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-
-      <Box sx={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
+    <AssistantRuntimeProvider runtime={runtime}>
+      <div className="flex h-screen overflow-hidden">
         {sidebarOpen && (
-          <Box sx={{ width: 280, flexShrink: 0, backgroundColor: '#1a1a2e', color: '#fff' }}>
-            <Sidebar
-              conversations={conversations}
-              currentConversationId={currentConversationId}
-              startNewConversation={startNewConversation}
-              selectConversation={selectConversation}
-              deleteConversation={deleteConversation}
-              status={status}
-              open={sidebarOpen}
-              onClose={() => setSidebarOpen(false)}
-            />
-          </Box>
-        )}
-
-        <Box sx={{ flexGrow: 1, minWidth: 0, backgroundColor: '#fff' }}>
-          <ChatArea
-            messages={currentMessages}
-            loading={loading}
-            error={error}
-            input={input}
-            onInputChange={setInput}
-            onSend={sendMessage}
-            messagesEndRef={messagesEndRef}
+          <Sidebar
+            conversations={conversations}
+            currentConversationId={currentConversationId}
+            startNewConversation={startNewConversation}
+            selectConversation={setCurrentConversationId}
+            deleteConversation={deleteConversation}
+            status={status}
           />
-        </Box>
-      </Box>
-    </Box>
+        )}
+        <div className="flex flex-col flex-1 min-w-0">
+          <Header onToggleSidebar={() => setSidebarOpen(prev => !prev)} />
+          <div className="flex-1 min-h-0">
+            <Thread />
+          </div>
+        </div>
+      </div>
+    </AssistantRuntimeProvider>
   );
 }
 
-export default App;
+export default ChatApp;

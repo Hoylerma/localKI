@@ -18,16 +18,26 @@ services:
     ports:
       - "${BACKEND_PORT}:8000"
     environment:
-      - OLLAMA_API=${OLLAMA_API}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_API=${OLLAMA_API:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-bge-m3}
+      - CHAT_MODEL=${CHAT_MODEL:-llama3.1}
+      - CHUNK_SIZE=${CHUNK_SIZE:-2000}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-400}
+      - MAX_CONTEXT_CHARS=${MAX_CONTEXT_CHARS:-4000}
+      - RAG_TOP_K=${RAG_TOP_K:-15}
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-bwiki}
+      - WATCH_DIR=/app/watched_docs
+      - WATCH_INTERVAL=300
     depends_on:
       - postgres
-    # On Linux, containers don't resolve host.docker.internal by default.
-    # Map host.docker.internal to the host gateway so containers can reach host services
-    # (e.g. Ollama running on the host at port 11434).
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - /mnt/dokumente/01_Internes/04_EDV_js/01_CAS/03_Webclient:/app/watched_docs:ro
 
   pgadmin:
     image: dpage/pgadmin4:8.14
@@ -41,17 +51,6 @@ services:
     depends_on:
       - postgres
 
-  ollama:
-    image: ollama/ollama:latest
-    restart: always
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    gpus: all
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-
   frontend:
     build:
       context: ./frontend
@@ -61,8 +60,5 @@ services:
     ports:
       - "${FRONTEND_PORT}:80"
 
- 
-
 volumes:
   pgdata:
-  ollama:
