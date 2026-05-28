@@ -140,10 +140,14 @@ async def sync_documents(watch_dir: str) -> dict:
     return stats
 
 
-# file_watcher.py (nur diese Funktion ersetzen)
-
 async def ingest_document_with_hash(
-    filename: str, file_bytes: bytes, file_hash: str, collection_name: str = None, filepath: str = None, timestamp: datetime = None) -> dict:
+    filename: str, 
+    file_bytes: bytes, 
+    file_hash: str, 
+    collection_name: str = None, 
+    filepath: str = None, 
+    timestamp: datetime = None
+) -> dict:
     """
     Parse -> Split -> Metadaten setzen -> in PGVector speichern.
     file_hash wird mitgespeichert, damit spaetere Aenderungen erkannt werden.
@@ -209,8 +213,14 @@ async def ingest_document_with_hash(
     return {"filename": filename, "chunks": len(documents)}
 
 
-async def watch_loop(watch_dir: str, interval: int = 30000):
-    """Endlosschleife: Synchronisiert alle X Sekunden."""
+async def watch_loop(watch_dir: str, interval: int = 30):
+    """
+    Endlosschleife: Synchronisiert alle X Sekunden.
+    
+    Args:
+        watch_dir: Zu überwachender Verzeichnis
+        interval: Sync-Intervall in Sekunden (default: 30)
+    """
     logger.info(f"👁️ File Watcher gestartet: {watch_dir} (alle {interval}s)")
 
     while True:

@@ -29,6 +29,9 @@ services:
       - RAG_TOP_K=${RAG_TOP_K:-20}
       - WATCH_DIR=/app/watched_docs
       - WATCH_INTERVAL=300
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3080}
+      - LDAP_SERVER=${LDAP_SERVER:-ldap://ldap.local}
+      - LDAP_DOMAIN=${LDAP_DOMAIN:-bwi.local}
     depends_on:
       - postgres
     extra_hosts:
@@ -49,19 +52,19 @@ services:
       - "3080:3080"
     depends_on:
    
-     mongodb:
-          condition: service_healthy
-     
+      mongodb:
+           condition: service_healthy
+      
     volumes:
       - ./librechat.yaml:/app/librechat.yaml
     env_file:
       - .env
     environment:
       - MONGO_URI=mongodb://mongodb:27017/LibreChat
-      - JWT_SECRET=EinSehrLangerZufaelligerStringFuerBWI2026
-      - JWT_REFRESH_SECRET=NochEinZufaelligerString123!
-      - DOMAIN_CLIENT=http://localhost:3080
-      - DOMAIN_SERVER=http://localhost:3080
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - DOMAIN_CLIENT=${DOMAIN_CLIENT:-http://localhost:3080}
+      - DOMAIN_SERVER=${DOMAIN_SERVER:-http://localhost:3080}
       - LDAP_LOGIN_USES_USERNAME=true
 
   # NEU: Datenbank für Chat-Historie

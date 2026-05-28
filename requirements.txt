@@ -1,13 +1,2 @@
-
-fastapi
-
-uvicorn[standard]
-
-httpx
-
-pydantic
-
-python-multipart
-
-aiofiles
-
+# This file is deprecated. Use backend/requirements.txt instead.
+# Keeping for reference only - all dependencies are managed in backend/requirements.txt
