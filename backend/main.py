@@ -31,16 +31,15 @@ WATCH_INTERVAL = int(os.getenv("WATCH_INTERVAL", "30"))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bwiki")
 
-origins = [
-    "http://localhost",
-    "http://127.0.0.1",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CORS-Origins aus Umgebungsvariable konfigurierbar machen
+CORS_ORIGINS = os.getenv(
+    "CORS_ORIGINS", 
+    "http://localhost,http://127.0.0.1,http://localhost:3080,http://127.0.0.1:3080"
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

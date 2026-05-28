@@ -1,5 +1,4 @@
-{
-  "name": "bw-i-ki",
-  "private": true,
-  "description": "Helper package file for the project."
-}
+# This file is not actively used in this project.
+# All dependencies and runtime are managed through:
+# - backend/requirements.txt (Python)
+# - docker-compose.yml (Container orchestration)
