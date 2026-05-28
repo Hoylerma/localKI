@@ -1,0 +1,50 @@
+version: 1.0.5
+cache: true
+
+# ==========================================================
+# ENDPUNKTE & AGENTEN
+# ==========================================================
+endpoints:
+  custom:
+    # 1. Agent: BWI RAG (Netzlaufwerk)
+    - name: "BWI-K:-Laufwerk"
+      baseURL: "http://backend:8000/v1"
+      apiKey: "bwi-key-123"
+      models:
+        default: ["BWI-K:Laufwerk"]
+        fetch: false
+      titleModel: "BWI-K:-Laufwerk"
+      addParams:
+        dropParams: ["stop", "frequency_penalty", "presence_penalty"]
+      modelsConfig:
+        bwi-rag-model:
+          vision: true # Aktiviert die Büroklammer
+
+    # 2. Agent: Zusammenfassung
+    - name: "Summary"
+      baseURL: "http://backend:8000/v1"
+      apiKey: "bwi-key-123"
+      models:
+        default: ["BWI-summary-agent"] 
+        fetch: false
+      titleModel: "BWI-summary-model"
+      
+      addParams:
+        dropParams: ["stop", "frequency_penalty", "presence_penalty"]
+      modelsConfig:
+        bwi-summary-model:
+          vision: true # Aktiviert die Büroklammer
+
+# ==========================================================
+# DATEIUPLOAD-KONFIGURATION
+# ==========================================================
+fileConfig:
+  # Globale Limits
+  serverFileSizeLimit: 100 
+  avatarSizeLimit: 2
+
+  # Spezifische Limits für die Endpunkte
+  endpoints:
+    custom:
+      fileLimit: 5          # Max 5 Dateien gleichzeitig pro Nachricht
+      fileSizeLimit: 20     # Max 20 MB pro Datei

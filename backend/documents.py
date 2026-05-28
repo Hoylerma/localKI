@@ -1,0 +1,43 @@
+from config import COLLECTION_NAME
+from database import get_pool
+
+async def list_documents() -> list[dict]:
+    """List all documents stored in the vector store (grouped by filename)."""
+    # Liest aggregiert aus den Embeddings und gruppiert nach Dateinamen.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT
+                e.cmetadata->>'filename' AS filename,
+                COUNT(*) AS chunks
+            FROM langchain_pg_embedding e
+            JOIN langchain_pg_collection c ON e.collection_id = c.uuid
+            WHERE c.name = $1
+              AND e.cmetadata->>'filename' IS NOT NULL
+              AND e.cmetadata->>'origin' = 'manual'
+            GROUP BY e.cmetadata->>'filename'
+            ORDER BY MAX(e.id) DESC
+            """,
+            COLLECTION_NAME,
+        )
+    return [{"filename": r["filename"], "chunks": r["chunks"]} for r in rows]
+
+
+async def delete_document(filename: str) -> bool:
+    """Delete all chunks belonging to *filename* from the vector store."""
+    # Entfernt alle Vektor-Chunks einer Datei aus der Standard-Collection.
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            DELETE FROM langchain_pg_embedding
+            WHERE collection_id = (
+                SELECT uuid FROM langchain_pg_collection WHERE name = $1
+            )
+            AND cmetadata->>'filename' = $2
+            """,
+            COLLECTION_NAME,
+            filename,
+        )
+    return result != "DELETE 0"

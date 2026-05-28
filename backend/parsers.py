@@ -1,0 +1,86 @@
+import io
+import logging
+
+from docling.datamodel.base_models import DocumentStream, InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TesseractCliOcrOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docx import Document as DocxDocument
+from docling.document_converter import ImageFormatOption
+
+logger = logging.getLogger("bwiki.parsers")
+
+
+def get_docling_converter():
+    """Konfiguriert Docling inkl. OCR fuer PDF/Bild-Parsing."""
+    pipeline_options = PdfPipelineOptions()
+    
+    # --- 1. DIE AUFLÖSUNG (DPI) EINSTELLEN ---
+    # Faktor 4.0 * 72 Basis-DPI = 288 DPI. (Standard ist oft zu gering für schlechte Scans).
+    pipeline_options.images_scale = 4.0
+    
+  
+    
+    # Sicherstellen, dass Seiten überhaupt erst in Bilder für OCR umgewandelt werden
+    pipeline_options.generate_page_images = True 
+
+    # OCR Engine festlegen
+    pipeline_options.ocr_options = TesseractCliOcrOptions()
+
+    format_options = {
+        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+        
+        InputFormat.IMAGE: ImageFormatOption(ocr_options=pipeline_options.ocr_options),
+    }
+
+    return DocumentConverter(
+        allowed_formats=[InputFormat.PDF, InputFormat.IMAGE],
+        format_options=format_options,
+    )
+
+
+def _parse_docling(file_bytes: bytes, filename: str) -> str:
+    """Extrahiert Text aus PDF/Bildern via Docling und liefert Markdown zurueck."""
+    try:
+        logger.info(f"🔍 Docling OCR startet für: {filename}...")
+        converter = get_docling_converter()
+        source = DocumentStream(name=filename, stream=io.BytesIO(file_bytes))
+        result = converter.convert(source)
+        markdown_text = result.document.export_to_markdown()
+
+        if not markdown_text.strip():
+            logger.warning(f"⚠️ OCR lieferte keinen Text für {filename}")
+
+        return markdown_text
+    except Exception as e:
+        logger.error(f"❌ Docling OCR Fehler: {e}")
+        return ""
+
+
+def _parse_docx(file_bytes: bytes, filename: str) -> str:
+    """Extrahiert sichtbare Absatztexte aus einer DOCX-Datei."""
+    try:
+        doc = DocxDocument(io.BytesIO(file_bytes))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    except Exception as e:
+        logger.error(f"❌ DOCX Fehler bei {filename}: {e}")
+        return ""
+
+
+def _parse_txt(file_bytes: bytes, _filename: str) -> str:
+    """Dekodiert textbasierte Formate robust als UTF-8."""
+    return file_bytes.decode("utf-8", errors="replace")
+
+
+def parse_document(filename: str, file_bytes: bytes) -> str:
+    """Waehlt parser-basiert auf Dateiendung und liefert Rohtext/Markdown."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext in ("pdf", "jpg", "jpeg", "png",):
+        return _parse_docling(file_bytes, filename)
+    if ext == "docx":
+        return _parse_docx(file_bytes, filename)
+    if ext in ( "csv","xml", "html"):
+        return _parse_txt(file_bytes, filename)
+
+    logger.warning(f"⚠️ Nicht unterstütztes Format: .{ext} bei {filename}")
+    return ""
